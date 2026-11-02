@@ -627,57 +627,155 @@ function decorar() {
   jarronTulipanes(0, -7.4);
 }
 
+function texturaTela(base, linea, tipo) {
+  const [c, g] = lienzo(256, 256);
+  g.fillStyle = base; g.fillRect(0, 0, 256, 256);
+  g.strokeStyle = linea; g.lineWidth = 2;
+  if (tipo === 'sarga') {
+    for (let k = -256; k < 512; k += 6) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 256, 256); g.stroke(); }
+    for (let n = 0; n < 2500; n++) {
+      g.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)';
+      g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+    }
+  } else {
+    for (let k = 0; k < 256; k += 8) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, 256); g.stroke(); }
+  }
+  const t = texDeCanvas(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(3, 3);
+  return t;
+}
+
+function tuboAhusado(puntos, radio, segs = 40, rad = 8, aplastar = 1, cerrado = false) {
+  const curva = new THREE.CatmullRomCurve3(puntos, cerrado);
+  const geo = new THREE.TubeGeometry(curva, segs, 1, rad, cerrado);
+  const p = geo.attributes.position;
+  for (let s = 0; s <= segs; s++) {
+    const u = s / segs;
+    const c = curva.getPointAt(u);
+    const r = typeof radio === 'function' ? radio(u) : radio;
+    for (let k = 0; k <= rad; k++) {
+      const idx = s * (rad + 1) + k;
+      const v = new THREE.Vector3(p.getX(idx), p.getY(idx), p.getZ(idx)).sub(c);
+      p.setXYZ(idx, c.x + v.x * r, c.y + v.y * r * aplastar, c.z + v.z * r);
+    }
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function texturaOjo() {
+  const [c, g] = lienzo(512, 256);
+  g.fillStyle = '#fbf8f4'; g.fillRect(0, 0, 512, 256);
+  const cx = 128, cy = 128, R = 46;
+  const gi = g.createRadialGradient(cx, cy, 6, cx, cy, R);
+  gi.addColorStop(0, '#9a8a4e'); gi.addColorStop(.45, '#7a6435'); gi.addColorStop(.85, '#4a3420'); gi.addColorStop(1, '#2a1c12');
+  g.fillStyle = gi; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(40,25,10,.35)'; g.lineWidth = 1.5;
+  for (let a = 0; a < Math.PI * 2; a += .18) {
+    g.beginPath(); g.moveTo(cx + Math.cos(a) * 20, cy + Math.sin(a) * 20); g.lineTo(cx + Math.cos(a) * 42, cy + Math.sin(a) * 42); g.stroke();
+  }
+  g.fillStyle = '#0d0907'; g.beginPath(); g.arc(cx, cy, 19, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(cx + 13, cy - 15, 9, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.arc(cx - 14, cy + 14, 4, 0, Math.PI * 2); g.fill();
+  return texDeCanvas(c);
+}
+
 function crearPersonaje() {
   const g = new THREE.Group();
   const raiz = new THREE.Group();
   g.add(raiz);
   const std = (color, roughness = .7, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });
-  const piel = std(COLOR_PIEL, .62, { side: THREE.DoubleSide });
-  const pelo = std(COLOR_PELO, .38, { metalness: .08, side: THREE.DoubleSide });
-  const top = std(0x141215, .55, { side: THREE.DoubleSide });
+  const piel = std(COLOR_PIEL, .52, { emissive: 0x3a1608, emissiveIntensity: .12 });
+  const pelo = new THREE.MeshPhysicalMaterial({ color: COLOR_PELO, roughness: .32, sheen: 1, sheenColor: new THREE.Color(0x7a6a80), sheenRoughness: .35, side: THREE.DoubleSide });
   const vaquero = std(0x6a8db5, .92, { side: THREE.DoubleSide });
   const costura = std(0x4c6c93, .9);
   const blanco = std(0xf4f1ec, .5), gris = std(0xd8d4cc, .7);
-  const oscuro = std(0x1a1210, .3), iris = std(0x3d2617, .3);
-  const labio = std(0xb35c5a, .45), dientes = std(0xfbf8f2, .3);
-  const rubor = new THREE.MeshBasicMaterial({ color: 0xe0857a, transparent: true, opacity: .28, depthWrite: false });
-  const torno = (perfil, mat, sz = .76) => {
-    const m = new THREE.Mesh(new THREE.LatheGeometry(perfil.map(([r, y]) => new THREE.Vector2(r, y)), 32), mat);
-    m.scale.z = sz; raiz.add(m); return m;
-  };
+  const negro = std(0x141215, .5);
+  const plata = std(0xe6e6ea, .18, { metalness: 1 });
+  const labio = new THREE.MeshPhysicalMaterial({ color: 0xc8636a, roughness: .35, clearcoat: .6, clearcoatRoughness: .3 });
+  const pestanaMat = std(0x120c0a, .5);
+  const cejaMat = std(0x2a1c18, .7);
+  const rubor = new THREE.MeshBasicMaterial({ color: 0xe8807a, transparent: true, opacity: .22, depthWrite: false });
 
-  torno([[.15, .8], [.172, .84], [.18, .9], [.17, .955], [.16, .985]], vaquero, .72);
-  const cintura = new THREE.Mesh(new THREE.TorusGeometry(.161, .013, 8, 32), costura);
-  cintura.rotation.x = Math.PI / 2; cintura.scale.set(1, .72, 1); cintura.position.y = .978; raiz.add(cintura);
-  const boton = new THREE.Mesh(new THREE.SphereGeometry(.011, 10, 8), std(0xc9a45c, .3, { metalness: .8 }));
-  boton.position.set(0, .975, .121); raiz.add(boton);
-  torno([[.153, .97], [.143, 1.02], [.136, 1.07], [.14, 1.1]], piel);
-  torno([[.12, 1.3], [.152, 1.33], [.176, 1.36], [.13, 1.393], [.05, 1.41], [.001, 1.412]], piel, .74);
-  torno([[.143, 1.075], [.151, 1.13], [.164, 1.19], [.166, 1.23], [.158, 1.27], [.142, 1.31], [.112, 1.335]], top, .78);
-  for (const lado of [-1, 1]) {
-    const tirante = new THREE.Mesh(new THREE.TorusGeometry(.1, .008, 6, 16, Math.PI), top);
-    tirante.rotation.y = Math.PI / 2;
-    tirante.scale.set(1, .9, .8);
-    tirante.position.set(lado * .085, 1.3, 0);
-    raiz.add(tirante);
+  const ZS = .7;
+  const perfil = [[.12, .78], [.158, .83], [.176, .89], [.174, .94], [.162, .985], [.152, 1.02], [.137, 1.07], [.136, 1.11], [.147, 1.16], [.161, 1.21], [.164, 1.25], [.157, 1.29], [.151, 1.33], [.158, 1.36], [.164, 1.38], [.15, 1.405], [.12, 1.425], [.085, 1.44], [.055, 1.455], [.038, 1.475]];
+  const R = y => {
+    if (y <= perfil[0][1]) return perfil[0][0];
+    for (let i = 1; i < perfil.length; i++) {
+      const [r1, y1] = perfil[i], [r0, y0] = perfil[i - 1];
+      if (y <= y1) { const t = (y - y0) / (y1 - y0); const s = t * t * (3 - 2 * t); return r0 + (r1 - r0) * s; }
+    }
+    return perfil[perfil.length - 1][0];
+  };
+  const pts = [];
+  for (let y = .78; y <= 1.476; y += .005) pts.push(new THREE.Vector2(R(y), y));
+  const geoTorso = new THREE.LatheGeometry(pts, 48);
+  const pos = geoTorso.attributes.position;
+  const cols = new Float32Array(pos.count * 3);
+  const cVaq = new THREE.Color(0x6a8db5), cPiel = new THREE.Color(COLOR_PIEL), cTop = new THREE.Color(0x141215);
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    let z = pos.getZ(i) * ZS;
+    if (z > 0 && y > 1.15 && y < 1.31) z *= 1 + .1 * Math.sin((y - 1.15) / .16 * Math.PI);
+    pos.setZ(i, z);
+    const c = y < .985 ? cVaq : (y < 1.105 ? cPiel : (y < 1.335 ? cTop : cPiel));
+    cols.set([c.r, c.g, c.b], i * 3);
   }
-  const cuello = new THREE.Mesh(new THREE.CylinderGeometry(.04, .046, .14, 14), piel);
-  cuello.position.y = 1.45; raiz.add(cuello);
+  geoTorso.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  geoTorso.computeVertexNormals();
+  raiz.add(new THREE.Mesh(geoTorso, std(0xffffff, .6, { vertexColors: true, side: THREE.DoubleSide })));
+
+  const anillo = (y, rad, mat, extra = .004) => {
+    const pts = [];
+    for (let k = 0; k < 64; k++) {
+      const a = k / 64 * Math.PI * 2, r = R(y) + extra;
+      pts.push(new THREE.Vector3(Math.sin(a) * r, y, Math.cos(a) * r * ZS));
+    }
+    const m = new THREE.Mesh(tuboAhusado(pts, rad, 64, 8, 1, true), mat);
+    raiz.add(m); return m;
+  };
+  anillo(.98, .012, costura);
+  anillo(1.333, .005, negro, .002);
+  const boton = new THREE.Mesh(new THREE.SphereGeometry(.01, 10, 8), std(0xc9a45c, .3, { metalness: .8 }));
+  boton.position.set(0, .965, R(.965) * ZS + .006); raiz.add(boton);
+  for (const lado of [-1, 1]) {
+    const x = lado * .085, ptsT = [];
+    for (const [y, sgn] of [[1.335, 1], [1.37, 1], [1.4, 1], [1.425, 1], [1.437, 0], [1.425, -1], [1.4, -1], [1.37, -1], [1.335, -1]]) {
+      const r = Math.max(R(y), Math.abs(x) + .002);
+      const zz = Math.sqrt(Math.max(0, r * r - x * x)) * ZS;
+      ptsT.push(new THREE.Vector3(x * 1.02, sgn === 0 ? y + .006 : y, sgn * (zz + .005)));
+    }
+    raiz.add(new THREE.Mesh(tuboAhusado(ptsT, .005, 40, 6, .5), negro));
+  }
+  const ptsC = [];
+  for (let k = 0; k < 64; k++) {
+    const a = k / 64 * Math.PI * 2;
+    const y = 1.428 - .03 * Math.pow(Math.max(0, Math.cos(a)), 1.5);
+    const r = R(y) + .006;
+    ptsC.push(new THREE.Vector3(Math.sin(a) * r, y, Math.cos(a) * r * ZS * (1 + .02)));
+  }
+  raiz.add(new THREE.Mesh(tuboAhusado(ptsC, .0028, 96, 6, 1, true), plata));
+  const colgante = new THREE.Mesh(new THREE.OctahedronGeometry(.009), std(0x2f4fb0, .2, { metalness: .4 }));
+  colgante.position.set(0, 1.388, R(1.39) * ZS + .012); raiz.add(colgante);
+
+  const cuello = new THREE.Mesh(new THREE.CylinderGeometry(.036, .043, .14, 18), piel);
+  cuello.position.y = 1.5; raiz.add(cuello);
 
   const piernas = [-1, 1].map(lado => {
-    const cadera = new THREE.Group(); cadera.position.set(lado * .09, .86, 0); raiz.add(cadera);
-    const muslo = new THREE.Mesh(new THREE.CylinderGeometry(.093, .085, .42, 18), vaquero);
+    const cadera = new THREE.Group(); cadera.position.set(lado * .088, .86, 0); raiz.add(cadera);
+    const muslo = new THREE.Mesh(new THREE.CylinderGeometry(.094, .084, .42, 24), vaquero);
     muslo.position.y = -.21;
     const rodilla = new THREE.Group(); rodilla.position.y = -.4;
-    const rotula = new THREE.Mesh(new THREE.SphereGeometry(.085, 16, 12), vaquero);
-    const espinilla = new THREE.Mesh(new THREE.CylinderGeometry(.085, .106, .36, 18, 1, true), vaquero);
-    espinilla.position.y = -.18;
-    const bajo = new THREE.Mesh(new THREE.TorusGeometry(.104, .008, 6, 22), costura);
-    bajo.rotation.x = Math.PI / 2; bajo.position.y = -.355;
+    const rotula = new THREE.Mesh(new THREE.SphereGeometry(.084, 20, 14), vaquero);
+    const espinilla = new THREE.Mesh(new THREE.CylinderGeometry(.084, .11, .37, 24, 1, true), vaquero);
+    espinilla.position.y = -.185;
+    const bajo = new THREE.Mesh(new THREE.TorusGeometry(.108, .009, 6, 28), costura);
+    bajo.rotation.x = Math.PI / 2; bajo.position.y = -.365;
     const zapa = new THREE.Group(); zapa.position.set(0, -.41, .035);
-    const empeine = new THREE.Mesh(new THREE.CapsuleGeometry(.048, .11, 6, 14), blanco);
-    empeine.rotation.x = Math.PI / 2; empeine.scale.set(1.15, 1, .8);
-    const suela = new THREE.Mesh(new THREE.BoxGeometry(.118, .022, .225), gris);
+    const empeine = new THREE.Mesh(new THREE.CapsuleGeometry(.048, .11, 8, 16), blanco);
+    empeine.rotation.x = Math.PI / 2; empeine.scale.set(1.12, 1, .8);
+    const suela = new THREE.Mesh(new THREE.BoxGeometry(.116, .022, .225), gris);
     suela.position.y = -.038;
     zapa.add(empeine, suela);
     rodilla.add(rotula, espinilla, bajo, zapa);
@@ -686,143 +784,185 @@ function crearPersonaje() {
   });
 
   const brazos = [-1, 1].map(lado => {
-    const hombro = new THREE.Group(); hombro.position.set(lado * .2, 1.365, 0); hombro.rotation.z = lado * .13; raiz.add(hombro);
-    const sup = new THREE.Mesh(new THREE.CapsuleGeometry(.043, .2, 6, 14), piel); sup.position.y = -.14;
+    const hombro = new THREE.Group(); hombro.position.set(lado * .182, 1.37, 0); hombro.rotation.z = lado * .12; raiz.add(hombro);
+    const bola = new THREE.Mesh(new THREE.SphereGeometry(.045, 16, 12), piel);
+    bola.scale.set(1, .9, .9);
+    const sup = new THREE.Mesh(new THREE.CylinderGeometry(.038, .033, .27, 18), piel); sup.position.y = -.14;
     const codo = new THREE.Group(); codo.position.y = -.28;
-    const ante = new THREE.Mesh(new THREE.CapsuleGeometry(.036, .19, 6, 14), piel); ante.position.y = -.12;
-    const mano = new THREE.Mesh(new THREE.SphereGeometry(.042, 14, 10), piel);
-    mano.scale.set(.75, 1.15, .6); mano.position.y = -.27;
-    codo.add(ante, mano);
-    hombro.add(sup, codo);
+    const art = new THREE.Mesh(new THREE.SphereGeometry(.033, 14, 10), piel);
+    const ante = new THREE.Mesh(new THREE.CylinderGeometry(.032, .024, .24, 18), piel); ante.position.y = -.12;
+    const mano = new THREE.Group(); mano.position.y = -.25;
+    const palma = new THREE.Mesh(new THREE.SphereGeometry(.033, 14, 10), piel); palma.scale.set(.85, 1.1, .45); palma.position.y = -.025;
+    const dedos = new THREE.Mesh(new THREE.CapsuleGeometry(.012, .04, 4, 10), piel); dedos.scale.set(2.2, 1, .9); dedos.position.y = -.07;
+    const pulgar = new THREE.Mesh(new THREE.CapsuleGeometry(.009, .03, 4, 8), piel);
+    pulgar.position.set(-lado * .022, -.035, .012); pulgar.rotation.z = -lado * .5;
+    mano.add(palma, dedos, pulgar);
+    codo.add(art, ante, mano);
+    hombro.add(bola, sup, codo);
     return { hombro, codo };
   });
 
   const cabeza = new THREE.Group();
-  const geoCara = new THREE.SphereGeometry(.135, 40, 32);
-  const pos = geoCara.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);
-    if (y < 0) {
-      const k = Math.pow(Math.min(1, -y / .135), 1.6);
-      pos.setX(i, pos.getX(i) * (1 - .24 * k));
-      pos.setZ(i, pos.getZ(i) * (1 - .06 * k));
+  const geoCara = new THREE.SphereGeometry(.14, 56, 42);
+  const pc = geoCara.attributes.position;
+  for (let i = 0; i < pc.count; i++) {
+    let x = pc.getX(i), y = pc.getY(i), z = pc.getZ(i);
+    const u = y / .14;
+    if (u < 0) {
+      const k = Math.pow(-u, 1.35);
+      x *= 1 - .34 * k; z *= 1 - .1 * k; y *= 1 + .1 * k;
     }
+    x *= 1 + .05 * Math.exp(-Math.pow((u + .12) / .22, 2));
+    pc.setXYZ(i, x * .9, y * 1.07, z * .95);
   }
-  geoCara.scale(.92, 1.08, .95);
   geoCara.computeVertexNormals();
   const cara = new THREE.Mesh(geoCara, piel);
   cabeza.add(cara);
   cabeza.updateMatrixWorld(true);
 
   const rayo = new THREE.Raycaster();
-  const pegar = (obj, x, y, off = 0) => {
+  const sup = (x, y, off = 0) => {
     rayo.set(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1));
-    const hit = rayo.intersectObject(cara)[0];
-    const p = hit.point.clone().addScaledVector(hit.face.normal, off);
-    obj.position.copy(p);
+    const h = rayo.intersectObject(cara)[0];
+    return { p: h.point.clone().addScaledVector(h.face.normal, off), n: h.face.normal.clone() };
+  };
+  const pegar = (obj, x, y, off = 0) => {
+    const s = sup(x, y, off);
+    obj.position.copy(s.p);
     cabeza.add(obj);
-    obj.lookAt(p.clone().add(hit.face.normal));
+    obj.lookAt(s.p.clone().add(s.n));
     return obj;
   };
 
+  const texOjo = texturaOjo();
+  const geoGlobo = new THREE.SphereGeometry(.03, 32, 24);
+  const matGlobo = new THREE.MeshStandardMaterial({ map: texOjo, roughness: .15 });
   const ojos = [-1, 1].map(lado => {
     const ojo = new THREE.Group();
-    const blancoOjo = new THREE.Mesh(new THREE.SphereGeometry(.021, 16, 12), blanco);
-    blancoOjo.scale.set(1.05, .78, .42);
-    const ir = new THREE.Mesh(new THREE.CircleGeometry(.0125, 20), iris); ir.position.z = .0092;
-    const pup = new THREE.Mesh(new THREE.CircleGeometry(.0062, 16), oscuro); pup.position.z = .0096;
-    const brilloOjo = new THREE.Mesh(new THREE.CircleGeometry(.0035, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    brilloOjo.position.set(.004, .004, .0099);
-    const pestana = new THREE.Mesh(new THREE.TorusGeometry(.021, .0032, 6, 16, Math.PI), oscuro);
-    pestana.scale.set(1.08, .8, 1); pestana.position.z = .002;
-    ojo.add(blancoOjo, ir, pup, brilloOjo, pestana);
-    pegar(ojo, lado * .046, .008, .001);
-    const ceja = pegar(new THREE.Mesh(new THREE.BoxGeometry(.042, .0055, .006), pelo), lado * .049, .052, .002);
-    ceja.rotateZ(-lado * .14);
-    pegar(new THREE.Mesh(new THREE.CircleGeometry(.021, 16), rubor), lado * .074, -.036, .0015);
-    const oreja = new THREE.Mesh(new THREE.SphereGeometry(.026, 12, 10), piel);
-    oreja.scale.set(.45, 1, .75); oreja.position.set(lado * .118, -.004, -.005);
-    cabeza.add(oreja);
+    const globo = new THREE.Mesh(geoGlobo, matGlobo);
+    globo.rotation.y = -lado * .08;
+    const parpado = new THREE.Mesh(new THREE.SphereGeometry(.0322, 28, 12, 0, Math.PI * 2, 0, Math.PI * .25), piel);
+    parpado.rotation.x = .2;
+    const borde = [];
+    for (let k = 0; k <= 16; k++) {
+      const az = (-75 + 150 * k / 16) * Math.PI / 180;
+      const th = (56 - 8 * Math.pow(Math.abs(az) / 1.31, 2)) * Math.PI / 180;
+      borde.push(new THREE.Vector3(Math.sin(th) * Math.sin(az) * .0328, Math.cos(th) * .0328, Math.sin(th) * Math.cos(az) * .0328));
+    }
+    const exterior = lado;
+    const linea = new THREE.Mesh(tuboAhusado(borde, u => {
+      const e = exterior > 0 ? u : 1 - u;
+      return .0016 + .0034 * Math.pow(e, 1.6);
+    }, 32, 6, .7), pestanaMat);
+    const parpadoInf = new THREE.Mesh(new THREE.SphereGeometry(.0318, 28, 10, 0, Math.PI * 2, Math.PI * .74, Math.PI * .26), piel);
+    parpadoInf.rotation.x = -.12;
+    ojo.add(globo, parpado, parpadoInf, linea);
+    for (let k = 0; k < 4; k++) {
+      const t = .62 + k * .11;
+      const idx = Math.round((exterior > 0 ? t : 1 - t) * 16);
+      const base = borde[idx];
+      const pest = new THREE.Mesh(new THREE.ConeGeometry(.0022, .016 - k * .001, 5), pestanaMat);
+      pest.position.copy(base).multiplyScalar(1.03);
+      pest.position.y += .004;
+      pest.rotation.z = -exterior * (.6 + k * .18);
+      pest.rotation.x = -.5;
+      ojo.add(pest);
+    }
+    const bajos = [];
+    for (let k = 0; k <= 10; k++) {
+      const az = (-55 + 110 * k / 10) * Math.PI / 180;
+      const th = 126 * Math.PI / 180;
+      bajos.push(new THREE.Vector3(Math.sin(th) * Math.sin(az) * .0315, Math.cos(th) * .0315, Math.sin(th) * Math.cos(az) * .0315));
+    }
+    ojo.add(new THREE.Mesh(tuboAhusado(bajos, .0009, 20, 5), std(0x6a4a3c, .7)));
+    pegar(ojo, lado * .05, .006, -.017);
+
+    const ptsCeja = [];
+    for (let k = 0; k <= 6; k++) {
+      const t = k / 6;
+      const x = lado * (.022 + .066 * t);
+      const y = .042 + .014 * Math.sin(Math.min(1, t / .7) * Math.PI / 2) - (t > .7 ? (t - .7) * .05 : 0);
+      ptsCeja.push(sup(x, y, .003).p);
+    }
+    cabeza.add(new THREE.Mesh(tuboAhusado(ptsCeja, u => .0055 * (1 - u * .65), 24, 6, .45), cejaMat));
+
+    pegar(new THREE.Mesh(new THREE.CircleGeometry(.024, 18), rubor), lado * .082, -.048, .0015);
+    const oreja = new THREE.Mesh(new THREE.SphereGeometry(.026, 14, 10), piel);
+    oreja.scale.set(.42, 1, .72); oreja.position.set(lado * .124, -.01, -.008);
+    const aro = new THREE.Mesh(new THREE.TorusGeometry(.016, .0028, 8, 24), plata);
+    aro.position.set(lado * .128, -.045, -.002); aro.rotation.y = Math.PI / 2;
+    cabeza.add(oreja, aro);
     return ojo;
   });
 
-  const tabique = pegar(new THREE.Mesh(new THREE.SphereGeometry(.011, 10, 10), piel), 0, -.016, -.003);
-  tabique.scale.set(.55, 1.9, .9);
-  pegar(new THREE.Mesh(new THREE.SphereGeometry(.0105, 12, 10), piel), 0, -.038, .001).scale.set(1.15, .85, 1);
+  const tabique = pegar(new THREE.Mesh(new THREE.SphereGeometry(.007, 10, 10), piel), 0, -.024, -.002);
+  tabique.scale.set(.55, 2.6, .8);
+  const punta = pegar(new THREE.Mesh(new THREE.SphereGeometry(.0085, 14, 12), piel), 0, -.047, .001);
+  punta.scale.set(1.1, .8, .9);
+  for (const lado of [-1, 1]) pegar(new THREE.Mesh(new THREE.SphereGeometry(.0045, 10, 8), piel), lado * .008, -.05, -.0005);
 
-  const boca = pegar(new THREE.Group(), 0, -.066, .001);
-  const dentadura = new THREE.Mesh(new THREE.CircleGeometry(.023, 20, Math.PI, Math.PI), dientes);
-  dentadura.scale.y = .55;
-  const labioSup = new THREE.Mesh(new THREE.CapsuleGeometry(.0028, .044, 4, 8), labio);
-  labioSup.rotation.z = Math.PI / 2; labioSup.position.y = .0015;
-  const labioInf = new THREE.Mesh(new THREE.TorusGeometry(.023, .0036, 6, 18, Math.PI), labio);
-  labioInf.rotation.z = Math.PI; labioInf.scale.y = .58;
-  boca.add(dentadura, labioSup, labioInf);
+  const boca = x => -.086 + .007 * Math.pow(Math.abs(x) / .026, 2);
+  const curvaBoca = (dy, off) => { const a = []; for (let k = 0; k <= 10; k++) { const x = -.026 + .052 * k / 10; a.push(sup(x, boca(x) + dy, off).p); } return a; };
+  cabeza.add(new THREE.Mesh(tuboAhusado(curvaBoca(.0045, .002), u => .0018 + .0042 * Math.sin(Math.PI * u) * (1 - .3 * Math.exp(-Math.pow((u - .5) / .06, 2))), 40, 8, .5), labio));
+  cabeza.add(new THREE.Mesh(tuboAhusado(curvaBoca(-.0055, .002), u => .0018 + .0062 * Math.pow(Math.sin(Math.PI * u), 1.3), 40, 8, .6), labio));
+  cabeza.add(new THREE.Mesh(tuboAhusado(curvaBoca(0, .0035), u => .0009 + .0004 * Math.sin(Math.PI * u), 30, 5), std(0x6a2e2e, .6)));
+  pegar(new THREE.Mesh(new THREE.CircleGeometry(.008, 12), std(COLOR_PIEL, .5)), 0, -.112, .0005);
 
   const melena = new THREE.Group();
   cabeza.add(melena);
-  const casquete = new THREE.Mesh(new THREE.SphereGeometry(.142, 36, 18, 0, Math.PI * 2, 0, Math.PI * .55), pelo);
-  casquete.scale.set(.96, 1.1, .99);
-  casquete.rotation.x = -.7;
+  const casquete = new THREE.Mesh(new THREE.SphereGeometry(.148, 40, 20, 0, Math.PI * 2, 0, Math.PI * .5), pelo);
+  casquete.scale.set(.93, 1.08, .98);
+  casquete.rotation.x = -.76;
   melena.add(casquete);
-  const relleno = new THREE.Mesh(new THREE.CapsuleGeometry(.1, .2, 8, 16), pelo);
-  relleno.position.set(0, -.13, -.1);
-  relleno.scale.set(1.35, 1, .5);
+  const coronilla = new THREE.Mesh(new THREE.SphereGeometry(.06, 16, 12), pelo);
+  coronilla.position.set(0, .135, -.02); coronilla.scale.set(1, .6, 1.3);
+  melena.add(coronilla);
+  const relleno = new THREE.Mesh(new THREE.CapsuleGeometry(.11, .2, 8, 16), pelo);
+  relleno.position.set(0, -.14, -.105);
+  relleno.scale.set(1.4, 1, .5);
   melena.add(relleno);
 
   const radioCuerpo = a => {
     const dx = Math.sin(a), dz = Math.cos(a);
-    return .245 * .12 / Math.sqrt((.12 * dx) ** 2 + (.245 * dz) ** 2);
+    return .24 * .125 / Math.sqrt((.125 * dx) ** 2 + (.24 * dz) ** 2);
   };
-  let sem = 7;
+  let sem = 11;
   const rnd = () => (sem = (sem * 16807) % 2147483647) / 2147483647;
-  const MECHONES = 56;
+  const MECHONES = 84;
   for (let i = 0; i < MECHONES; i++) {
-    const a = -2.42 + 4.84 * (i / (MECHONES - 1)) + (rnd() - .5) * .05;
+    const a = -2.45 + 4.9 * (i / (MECHONES - 1)) + (rnd() - .5) * .06;
     const absA = Math.abs(a);
     const caeA = absA < 2.0 ? a * .6 : Math.sign(a) * (2.25 + (absA - 2.0) * .35);
     const dir = new THREE.Vector3(Math.sin(a), 0, -Math.cos(a));
     const dirCae = new THREE.Vector3(Math.sin(caeA), 0, -Math.cos(caeA));
     const tg = new THREE.Vector3(dirCae.z, 0, -dirCae.x);
-    const yFin = -.4 + .09 * Math.pow(absA / 2.42, 2) + (rnd() - .5) * .05;
+    const yFin = -.4 + .08 * Math.pow(absA / 2.45, 2) + (rnd() - .5) * .06;
     const fase = rnd() * Math.PI * 2;
-    const pts = [
-      new THREE.Vector3(Math.sign(a) * .006, .158, .02 - .07 * Math.cos(a) * .5),
-      dir.clone().multiplyScalar(.1).setY(.132),
-      dir.clone().multiplyScalar(.148).setY(.06),
-      dir.clone().multiplyScalar(.158).setY(-.01)
+    const puntos = [
+      new THREE.Vector3(Math.sign(a) * .005, .166, .03 - .08 * Math.cos(a) * .5),
+      dir.clone().multiplyScalar(.105).setY(.14),
+      dir.clone().multiplyScalar(.152).setY(.07),
+      dir.clone().multiplyScalar(.164).setY(-.005)
     ];
-    const pasos = 10;
+    const pasos = 12;
     for (let s = 1; s <= pasos; s++) {
       const t = s / pasos;
-      const y = -.01 + (yFin + .01) * t;
+      const y = -.005 + (yFin + .005) * t;
       const yAbs = 1.6 + y;
-      const base = yAbs < 1.43 ? radioCuerpo(caeA) + .035 : .158 + (radioCuerpo(caeA) + .035 - .158) * THREE.MathUtils.smoothstep(1.6 - yAbs, 0, .17);
-      const amp = .006 + .022 * t;
-      const ond = Math.sin(y * 40 + fase) * amp;
+      const objetivo = radioCuerpo(caeA) + .04;
+      const base = yAbs < 1.43 ? objetivo : .164 + (objetivo - .164) * THREE.MathUtils.smoothstep(1.6 - yAbs, 0, .17);
+      const amp = .008 + .026 * t;
+      const ond = Math.sin(y * 38 + fase) * amp;
       const d = dir.clone().lerp(dirCae, Math.min(1, t * 2.2)).normalize();
-      pts.push(d.multiplyScalar(base + ond + .012 * t).addScaledVector(tg, Math.cos(y * 34 + fase) * amp * .5).setY(y));
+      puntos.push(d.multiplyScalar(base + ond + .016 * t).addScaledVector(tg, Math.cos(y * 32 + fase) * amp * .55).setY(y));
     }
-    const curva = new THREE.CatmullRomCurve3(pts);
-    const segs = 56, rad = 6;
-    const geo = new THREE.TubeGeometry(curva, segs, 1, rad, false);
-    const p = geo.attributes.position;
-    const grosor = .026 + rnd() * .006;
-    for (let s = 0; s <= segs; s++) {
-      const u = s / segs;
-      const c = curva.getPointAt(u);
-      const r = grosor * (1 - .7 * Math.pow(u, 1.4)) * (u < .08 ? .55 + u * 5.6 : 1);
-      for (let k = 0; k <= rad; k++) {
-        const idx = s * (rad + 1) + k;
-        const v = new THREE.Vector3(p.getX(idx), p.getY(idx), p.getZ(idx)).sub(c);
-        p.setXYZ(idx, c.x + v.x * r, c.y + v.y * r, c.z + v.z * r * .7);
-      }
-    }
-    geo.computeVertexNormals();
+    const grosor = .022 + rnd() * .007;
+    const geo = tuboAhusado(puntos, u => grosor * (1 - .72 * Math.pow(u, 1.3)) * (u < .07 ? .5 + u * 7 : 1), 64, 6);
+    geo.scale(1, 1, 1);
     melena.add(new THREE.Mesh(geo, pelo));
   }
 
-  cabeza.position.y = 1.6;
+  cabeza.position.y = 1.62;
   raiz.add(cabeza);
 
   const sombra = new THREE.Mesh(new THREE.CircleGeometry(.42, 24),
