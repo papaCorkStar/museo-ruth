@@ -383,12 +383,13 @@ function colocarCuadros() {
     }));
     halo.position.z = -0.03;
     if (MOSTRAR_NUMEROS) grupo.add(numero);
-    grupo.add(halo, brillo, marco, foto, cartela);
+    const lampara = crearLamparaCuadro();
+    grupo.add(halo, brillo, marco, foto, cartela, lampara);
 
     const centro = grupo.position.clone();
 
 
-    const c = { datos, grupo, brillo, marco, foto, cartela, numero, halo, n, centro,
+    const c = { datos, grupo, brillo, marco, foto, cartela, numero, halo, lampara, n, centro,
       t: new THREE.Vector3(-n.z, 0, n.x), w: 2.2, h: 1.65, nivel: 0 };
     ajustarTamano(c, 4 / 3);
     cuadros.push(c);
@@ -416,6 +417,214 @@ function ajustarTamano(c, aspecto) {
   c.cartela.position.y = -(h / 2 + 0.38);
   c.numero.position.set(w / 2 + 0.42, h / 2 - 0.22, 0.02);
   c.halo.scale.set(w + 1.6, h + 1.8, 1);
+  c.lampara.position.y = h / 2 + 0.24;
+  c.lampara.scale.x = THREE.MathUtils.clamp(w * 0.5, 0.55, 1.15) / 0.9;
+}
+
+
+const matStd = (color, roughness = .7, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });
+const MAT = {};
+function materiales() {
+  if (MAT.oro) return MAT;
+  MAT.oro = matStd(0xc9a45c, .3, { metalness: .8 });
+  MAT.laton = matStd(0xb08a4a, .35, { metalness: .75 });
+  MAT.madera = matStd(0x3a2216, .55);
+  MAT.terciopelo = matStd(0x7a2232, .95);
+  MAT.marmol = matStd(0xefe9e1, .25);
+  MAT.barro = matStd(0xb5653f, .8);
+  MAT.tierra = matStd(0x2a1a12, 1);
+  MAT.hoja1 = matStd(0x2f6b3a, .6, { side: THREE.DoubleSide });
+  MAT.hoja2 = matStd(0x418a4b, .6, { side: THREE.DoubleSide });
+  MAT.tallo = matStd(0x4f8a3a, .7);
+  MAT.luz = new THREE.MeshBasicMaterial({ color: 0xfff1d6 });
+  return MAT;
+}
+
+function crearLamparaCuadro() {
+  const m = materiales();
+  const g = new THREE.Group();
+  for (const x of [-0.25, 0.25]) {
+    const brazo = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.26, 8), m.laton);
+    brazo.rotation.x = Math.PI / 2 - 0.35;
+    brazo.position.set(x, 0.04, 0.12);
+    g.add(brazo);
+  }
+  const barra = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.9, 16), m.laton);
+  barra.rotation.z = Math.PI / 2;
+  barra.position.set(0, 0, 0.25);
+  const brilloLamp = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.01, 0.05), m.luz);
+  brilloLamp.position.set(0, -0.045, 0.25);
+  g.add(barra, brilloLamp);
+  return g;
+}
+
+function texturaAlfombra() {
+  const [c, g] = lienzo(256, 2560);
+  g.fillStyle = '#6a1826'; g.fillRect(0, 0, 256, 2560);
+  g.strokeStyle = '#c9a45c'; g.lineWidth = 8; g.strokeRect(14, 14, 228, 2532);
+  g.lineWidth = 3; g.strokeRect(30, 30, 196, 2500);
+  g.strokeStyle = 'rgba(201,164,92,.35)'; g.lineWidth = 3;
+  for (let y = 90; y < 2500; y += 110) {
+    g.beginPath(); g.moveTo(128, y - 40); g.lineTo(178, y); g.lineTo(128, y + 40); g.lineTo(78, y); g.closePath(); g.stroke();
+    g.beginPath(); g.arc(128, y, 8, 0, Math.PI * 2); g.stroke();
+  }
+  return texDeCanvas(c);
+}
+
+function banco(x, z) {
+  const m = materiales();
+  const g = new THREE.Group();
+  const marco = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.08, 2.46), m.madera);
+  marco.position.y = 0.37;
+  const cojin = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.14, 2.4), m.terciopelo);
+  cojin.position.y = 0.48;
+  g.add(marco, cojin);
+  for (const sx of [-0.3, 0.3]) for (const sz of [-1.1, 1.1]) {
+    const pata = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.022, 0.34, 10), m.oro);
+    pata.position.set(sx, 0.17, sz);
+    g.add(pata);
+  }
+  g.position.set(x, 0, z);
+  scene.add(g);
+  obstaculo(x, z, 0.76, 2.46);
+}
+
+function planta(x, z) {
+  const m = materiales();
+  const g = new THREE.Group();
+  const maceta = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.6, 20), m.barro);
+  maceta.position.y = 0.3;
+  const borde = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.035, 8, 24), m.barro);
+  borde.rotation.x = Math.PI / 2; borde.position.y = 0.6;
+  const tierra = new THREE.Mesh(new THREE.CircleGeometry(0.28, 20), m.tierra);
+  tierra.rotation.x = -Math.PI / 2; tierra.position.y = 0.58;
+  g.add(maceta, borde, tierra);
+  const geoHoja = new THREE.SphereGeometry(0.2, 12, 8);
+  for (let k = 0; k < 16; k++) {
+    const t = k / 16;
+    const tallo = new THREE.Group();
+    tallo.position.y = 0.58;
+    tallo.rotation.y = k * 2.4;
+    tallo.rotation.z = 0.25 + t * 0.6;
+    const palo = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.014, 0.5 + (1 - t) * 0.7, 6), m.tallo);
+    palo.position.y = (0.5 + (1 - t) * 0.7) / 2;
+    const hoja = new THREE.Mesh(geoHoja, k % 2 ? m.hoja1 : m.hoja2);
+    hoja.scale.set(0.7, 1.4, 0.12);
+    hoja.position.y = 0.5 + (1 - t) * 0.7 + 0.22;
+    hoja.rotation.x = 0.3;
+    tallo.add(palo, hoja);
+    g.add(tallo);
+  }
+  g.scale.setScalar(1.35);
+  g.position.set(x, 0, z);
+  scene.add(g);
+  obstaculo(x, z, 0.9, 0.9);
+}
+
+function pedestal(x, z) {
+  const m = materiales();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.0, 0.6), m.marmol);
+  base.position.set(x, 0.5, z);
+  const tapa = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.06, 0.72), m.marmol);
+  tapa.position.set(x, 1.03, z);
+  const pie = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.08, 0.72), m.marmol);
+  pie.position.set(x, 0.04, z);
+  const filete = new THREE.Mesh(new THREE.BoxGeometry(0.73, 0.02, 0.73), m.oro);
+  filete.position.set(x, 0.995, z);
+  scene.add(base, tapa, pie, filete);
+  obstaculo(x, z, 0.75, 0.75);
+}
+
+function crearCorazon(x, z) {
+  const s = new THREE.Shape();
+  s.moveTo(0, -0.5);
+  s.bezierCurveTo(-0.1, -0.35, -0.6, -0.1, -0.6, 0.2);
+  s.bezierCurveTo(-0.6, 0.55, -0.2, 0.65, 0, 0.35);
+  s.bezierCurveTo(0.2, 0.65, 0.6, 0.55, 0.6, 0.2);
+  s.bezierCurveTo(0.6, -0.1, 0.1, -0.35, 0, -0.5);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 0.16, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.06, bevelSegments: 8, curveSegments: 32 });
+  geo.center();
+  const c = new THREE.Mesh(geo, matStd(0xc0182f, .22, { metalness: .25 }));
+  c.scale.setScalar(0.55);
+  c.position.set(x, 1.45, z);
+  scene.add(c);
+  return c;
+}
+
+function jarronTulipanes(x, z) {
+  const m = materiales();
+  const g = new THREE.Group();
+  const jarron = new THREE.Mesh(new THREE.LatheGeometry(
+    [[0.001, 0], [0.13, 0.01], [0.17, 0.12], [0.15, 0.28], [0.09, 0.4], [0.1, 0.44]].map(([r, y]) => new THREE.Vector2(r, y)), 28),
+    matStd(0xf3efe6, .2, { side: THREE.DoubleSide }));
+  g.add(jarron);
+  const colores = [0xf07a2a, 0xd8324a, 0xf07a2a, 0xe8546e, 0xd8324a];
+  const geoFlor = new THREE.SphereGeometry(0.075, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.7);
+  colores.forEach((col, k) => {
+    const a = k * 1.256, inc = k === 0 ? 0 : 0.22;
+    const tallo = new THREE.Group();
+    tallo.position.y = 0.38;
+    tallo.rotation.set(Math.cos(a) * inc, 0, Math.sin(a) * inc);
+    const largo = 0.42 + (k % 2) * 0.08;
+    const palo = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, largo, 6), m.tallo);
+    palo.position.y = largo / 2;
+    const flor = new THREE.Mesh(geoFlor, matStd(col, .5, { side: THREE.DoubleSide }));
+    flor.rotation.x = Math.PI;
+    flor.scale.set(1, 1.5, 1);
+    flor.position.y = largo + 0.06;
+    const hoja = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), m.hoja2);
+    hoja.scale.set(0.5, 3, 0.15);
+    hoja.position.set(0.02, largo * 0.45, 0);
+    hoja.rotation.z = -0.4;
+    tallo.add(palo, flor, hoja);
+    g.add(tallo);
+  });
+  g.position.set(x, 1.06, z);
+  scene.add(g);
+}
+
+function decorar() {
+  const m = materiales();
+  const cornisas = [
+    { l: W * 2, x: 0, z: -D + 0.07, ry: 0 }, { l: W * 2, x: 0, z: D - 0.07, ry: 0 },
+    { l: D * 2, x: -W + 0.07, z: 0, ry: Math.PI / 2 }, { l: D * 2, x: W - 0.07, z: 0, ry: Math.PI / 2 }
+  ];
+  for (const c of cornisas) {
+    const k = new THREE.Mesh(new THREE.BoxGeometry(c.l, 0.16, 0.14), m.oro);
+    k.position.set(c.x, ALTO - 0.08, c.z); k.rotation.y = c.ry;
+    scene.add(k);
+  }
+
+  const texAlf = texturaAlfombra();
+  for (const x of [-5.6, 5.6]) {
+    const alf = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 24), matStd(0xffffff, .95, { map: texAlf }));
+    alf.rotation.x = -Math.PI / 2;
+    alf.position.set(x, 0.006, -0.5);
+    scene.add(alf);
+  }
+
+  for (const x of [-5.6, 5.6]) for (const z of [-7, 7]) banco(x, z);
+
+  for (const x of [-1, 1]) for (const z of [-1, 1]) planta(x * (W - 0.7), z * (D - 0.7));
+  planta(-3, -D + 0.7);
+  planta(3, -D + 0.7);
+  planta(1.6, D - 0.9);
+  planta(-1.6, D - 0.9);
+
+  for (const x of [-5.5, 5.5]) for (const z of [-8, 0, 8]) {
+    const varilla = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), m.laton);
+    varilla.position.set(x, ALTO - 0.25, z);
+    const globo = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 14), m.luz);
+    globo.position.set(x, ALTO - 0.68, z);
+    const tapa = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.08, 14), m.laton);
+    tapa.position.set(x, ALTO - 0.5, z);
+    scene.add(varilla, globo, tapa);
+  }
+
+  pedestal(0, 8.6);
+  corazon = crearCorazon(0, 8.6);
+  pedestal(0, -7.4);
+  jarronTulipanes(0, -7.4);
 }
 
 function crearPersonaje() {
@@ -704,17 +913,24 @@ const tmpPos = new THREE.Vector3(), tmpMira = new THREE.Vector3();
 camTerceraPersona(tmpPos, camObjetivo);
 camera.position.copy(tmpPos);
 
-const banco = { minX: -MURO.grosor / 2, maxX: MURO.grosor / 2, minZ: -MURO.largo / 2, maxZ: MURO.largo / 2 };
+const OBSTACULOS = [];
+function obstaculo(x, z, sx, sz) {
+  OBSTACULOS.push({ minX: x - sx / 2, maxX: x + sx / 2, minZ: z - sz / 2, maxZ: z + sz / 2 });
+}
+obstaculo(0, 0, MURO.grosor, MURO.largo);
+
 function colisiones(p) {
   const r = 0.35;
   p.x = THREE.MathUtils.clamp(p.x, -W + r + 0.1, W - r - 0.1);
   p.z = THREE.MathUtils.clamp(p.z, -D + r + 0.1, D - r - 0.1);
-  if (p.x > banco.minX - r && p.x < banco.maxX + r && p.z > banco.minZ - r && p.z < banco.maxZ + r) {
-    const dx1 = p.x - (banco.minX - r), dx2 = (banco.maxX + r) - p.x;
-    const dz1 = p.z - (banco.minZ - r), dz2 = (banco.maxZ + r) - p.z;
-    const m = Math.min(dx1, dx2, dz1, dz2);
-    if (m === dx1) p.x = banco.minX - r; else if (m === dx2) p.x = banco.maxX + r;
-    else if (m === dz1) p.z = banco.minZ - r; else p.z = banco.maxZ + r;
+  for (const o of OBSTACULOS) {
+    if (p.x > o.minX - r && p.x < o.maxX + r && p.z > o.minZ - r && p.z < o.maxZ + r) {
+      const dx1 = p.x - (o.minX - r), dx2 = (o.maxX + r) - p.x;
+      const dz1 = p.z - (o.minZ - r), dz2 = (o.maxZ + r) - p.z;
+      const m = Math.min(dx1, dx2, dz1, dz2);
+      if (m === dx1) p.x = o.minX - r; else if (m === dx2) p.x = o.maxX + r;
+      else if (m === dz1) p.z = o.minZ - r; else p.z = o.maxZ + r;
+    }
   }
 }
 
@@ -838,10 +1054,12 @@ function aviso(txt) {
 }
 
 let tiempo = 0;
+let corazon = null;
 function actualizar(dt) {
   tiempo += dt;
   if (modo === 'paseo') {
     moverJugador(dt);
+    if (corazon) corazon.rotation.y += dt * 0.6;
     const n = buscarCercano();
     if (n !== cercano) { cercano = n; actualizarPista(); }
   } else animarPersonaje(dt, 0);
@@ -967,6 +1185,7 @@ async function iniciar() {
   } catch (e) {}
   construirSala();
   colocarCuadros();
+  decorar();
   redimensionar();
   bucle();
 }
